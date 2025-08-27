@@ -6,8 +6,11 @@ import "dotenv/config";
 import { Content, Link, Tag, User } from "./schema";
 import { contentSchema, SignupSchema } from "./types";
 import { authMiddleware } from "./middleware";
+import { createDocument, searchRouter } from "./semanticSearch";
+
 const app = express();
 app.use(express.json());
+app.use(searchRouter)
 
 app.post("/api/v1/sign-up", async (req, res) => {
   try {
@@ -95,11 +98,11 @@ app.post("/api/v1/sign-in", async (req, res) => {
 
 app.get("/api/v1/content", authMiddleware, async (req, res) => {
   try {
-    const content = await Content.find({userId: req.userId}).populate('tags');
+    const content = await Content.find({ userId: req.userId }).populate("tags");
     res.status(200).json({
       success: true,
-      content
-    })    
+      content,
+    });
   } catch (e) {
     console.log(e);
     res.status(500).json({
@@ -118,17 +121,17 @@ app.post("/api/v1/content", authMiddleware, async (req, res) => {
         error: "invalid data",
       });
     }
-    
+
     const content = parsedData.data;
-    const tagId = []
-    if(content.tags) {
-      for(const tag of content.tags) {
-        const existingTag = await Tag.findOne({title: tag})
-        if(existingTag) {
+    const tagId = [];
+    
+    if (content.tags) {
+      for (const tag of content.tags) {
+        const existingTag = await Tag.findOne({ title: tag });
+        if (existingTag) {
           tagId.push(existingTag._id);
-        }
-        else {
-          const newTag = new Tag({title: tag});
+        } else {
+          const newTag = new Tag({ title: tag });
           await newTag.save();
           tagId.push(newTag._id);
         }
@@ -140,6 +143,7 @@ app.post("/api/v1/content", authMiddleware, async (req, res) => {
       userId: req.userId,
     });
     await newContent.save();
+    await createDocument(newContent.title!);
     res.status(201).json({
       success: true,
       msg: "Content created successfully",
@@ -157,7 +161,7 @@ app.post("/api/v1/content", authMiddleware, async (req, res) => {
 app.delete("/api/v1/content", authMiddleware, async (req, res) => {
   try {
     const { id } = req.body;
-    if(!id) {
+    if (!id) {
       return res.status(400).json({
         success: false,
         msg: "content ID is required",
@@ -174,7 +178,6 @@ app.delete("/api/v1/content", authMiddleware, async (req, res) => {
       success: true,
       msg: "Deleted successfully",
     });
-
   } catch (e) {
     console.log(e);
     res.status(500).json({
@@ -186,8 +189,8 @@ app.delete("/api/v1/content", authMiddleware, async (req, res) => {
 
 app.post("/api/v1/brain/share", authMiddleware, async (req, res) => {
   try {
-    const userId  = req.userId;
-    if(!userId) {
+    const userId = req.userId;
+    if (!userId) {
       return res.status(400).json({
         success: false,
         msg: "userId is required",
@@ -195,12 +198,12 @@ app.post("/api/v1/brain/share", authMiddleware, async (req, res) => {
     }
     const link = new Link({
       userId,
-    }) 
+    });
     await link.save();
     res.status(201).json({
       success: true,
       linkId: link._id,
-    })
+    });
   } catch (e) {
     console.log(e);
     res.status(500).json({
@@ -212,19 +215,21 @@ app.post("/api/v1/brain/share", authMiddleware, async (req, res) => {
 
 app.get("/api/v1/brain/:sharelink", async (req, res) => {
   const shareLink = req.params.sharelink;
-   try {
+  try {
     const linkDoc = await Link.findById(shareLink);
-    if(!linkDoc) {
+    if (!linkDoc) {
       return res.status(404).json({
         success: false,
-        msg: "link not found"
-      })
+        msg: "link not found",
+      });
     }
-    const content = await Content.find({userId: linkDoc.userId}).populate('tags');
+    const content = await Content.find({ userId: linkDoc.userId }).populate(
+      "tags"
+    );
     res.status(200).json({
       success: true,
-      content
-    })    
+      content,
+    });
   } catch (e) {
     console.log(e);
     res.status(500).json({
